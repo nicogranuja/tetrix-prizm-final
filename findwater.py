@@ -26,27 +26,44 @@ colors = {
     7: "Brown"
 }
 stopColor = 'Blue'
-currentZone = 'Green'
-nextZone = 'Red'
+currentZone = 'White'
+nextZone = 'Yellow'
+prevZone = 'White'
+
+RIGHT = 0
+LEFT = 1
+prevDirection = RIGHT
 
 turnTime = 1.25
 backupTime = 0.5
 
+edgeCounter = 0
 
-def stopGoBackTurnAndMove():
+
+def stopGoBackTurnAndMove(turnTime=turnTime, isRandom=True):
+    global prevDirection
+
     turnOnLED()
     stop()
 
     moveBackwards(power)
     time.sleep(backupTime)
 
-    # Turn left/right
-    if random.randint(0, 1):
-        rightTurn(power)
+    # Turn left/right randomly
+    if isRandom:
+        if random.randint(0, 1):
+            rightTurn(power)
+        else:
+            leftTurn(power)
+    # Turn based on the previous direction
     else:
-        leftTurn(power)
+        if prevDirection == LEFT:
+            rightTurn(power)
+            prevDirection = RIGHT
+        else:
+            leftTurn(power)
+            prevDirection = LEFT
 
-    # Random time is the right/left degree turn
     time.sleep(turnTime)
 
     moveForward(power)
@@ -56,6 +73,9 @@ def stopGoBackTurnAndMove():
 def loop():
     global currentZone
     global nextZone
+    global prevZone
+
+    global edgeCounter
 
     distance = readSonicSensor()
     color = BP.get_sensor(BP.PORT_4)
@@ -65,17 +85,43 @@ def loop():
         time.sleep(0.01)
         return
 
-    if distance <= 20:
-        stopGoBackTurnAndMove()
+    # Obstacle found
+    if distance <= 10:
+        print("LOG found obstacle")
+        stopGoBackTurnAndMove(isRandom=False)
+
+    #  Got out of the current zone try to get back into it
     elif colors[color] == currentZone:
-        stopGoBackTurnAndMove()
+        if edgeCounter >= 3 and currentZone != 'Red':
+            print("LOG turning 180")
+            stopGoBackTurnAndMove(2)
+            edgeCounter = 0
+        else:
+            stopGoBackTurnAndMove()
+        edgeCounter += 1
+        print("LOG backing up for color ", currentZone, colors[color])
+
+    # Crossed the next zone update zone variables
     elif colors[color] == nextZone:
+        prevZone = currentZone
         currentZone = nextZone
-        nextZone = 'Yellow'
-    elif colors[color] == stopColor:
+        nextZone = 'Red'
+        edgeCounter = 0
+        time.sleep(0.1)
+        print("LOG found next zone should be in {} color".format(
+            currentZone), colors[color])
+
+    # Handle going back to the previous zone
+    elif colors[color] == prevZone:
+        nextZone = currentZone
+        currentZone = prevZone
+        print("LOG should back up for color in prev zone", colors[color])
+
+    # Found water exit
+    elif colors[color] == stopColor and currentZone == 'Red':
         turnOnLED(True)
-        print("read blue exitting...")
         stop()
+        print("LOG read blue exitting...")
         exit(0)
 
     time.sleep(0.001)
