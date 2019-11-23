@@ -62,7 +62,7 @@ def loop():
 
     # On false positive reads continue with next loop
     if distance == 0:
-        time.sleep(0.05)
+        time.sleep(0.01)
         return
 
     if distance <= 20:
